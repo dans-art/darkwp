@@ -1,8 +1,8 @@
 # darkwp - darktable to WordPress Upload Plugin
 ### Technical Specification
  
-**Status:** Draft for implementation
-**Author:** dansart
+**Status:** Ready for implementation
+**Author:** dans-art [https://github.com/dans-art]
 **Component name:** darkwp
  
 ---
