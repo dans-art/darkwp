@@ -20,6 +20,7 @@ du.check_min_api_version("9.7.0", "darkwp")
 
 local accounts_ui = require "darkwp/lib/accounts_ui"
 local export_storage = require "darkwp/lib/export_storage"
+local gallery_storage = require "darkwp/lib/gallery_storage"
 
 local gettext = dt.gettext.gettext
 local function _(msgid)
@@ -38,13 +39,20 @@ script_data.metadata = {
 local darkwp = {}
 darkwp.event_registered = false
 
+local function refresh_all_from_account()
+  export_storage.refresh_from_account()
+  gallery_storage.refresh_from_account()
+end
+
 local function install_module()
   accounts_ui.install()
   export_storage.install()
-  accounts_ui.on_account_changed = export_storage.refresh_from_account
+  gallery_storage.refresh_from_account() -- populate galleries for an already-active (full mode) account
+  accounts_ui.on_account_changed = refresh_all_from_account
 end
 
 local function destroy()
+  gallery_storage.destroy_all()
   export_storage.destroy()
   accounts_ui.destroy()
 end
@@ -52,6 +60,7 @@ end
 local function restart()
   accounts_ui.show()
   export_storage.install() -- storage is fully torn down on destroy, unlike a lib - re-register it
+  gallery_storage.refresh_from_account()
 end
 
 local function show()

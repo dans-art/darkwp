@@ -3,7 +3,7 @@
 
   WordPress-facing REST calls.
 
-  Fully implemented against WordPress core's stable, documented REST API:
+  Implemented against WordPress core's stable, documented REST API:
     - authenticate_and_check_capability()  GET /wp-json/wp/v2/users/me
     - probe_darkwp_info()                  GET /wp-json/darkwp/v1/info
                                             (status-code probe only - a
@@ -13,14 +13,15 @@
                                             response body)
     - upload_media_core()                  POST /wp-json/wp/v2/media
 
-  NOT implemented yet, by explicit instruction: parsing/consuming the
-  darkwp/v1/info response body and calling POST darkwp/v1/media. Those
-  routes belong to the darkwp companion WordPress plugin, which is still
-  being designed - the response/request shape isn't definitive yet, so
-  wiring them up now would mean re-doing it once it is. The functions
-  below are prepared (signature + call sites already wired from
-  accounts.lua / export_storage.lua) but stubbed until that structure is
-  settled - see get_info() and upload_media_full().
+  And against the darkwp/v1 custom routes, per specifications.md §4.1:
+    - get_info()          GET /wp-json/darkwp/v1/info - full response
+    - upload_media_full()  POST /wp-json/darkwp/v1/media
+
+  The exact shape used to distinguish an adapter-specific failure from a
+  plain upload failure (§4.6 step 5) isn't pinned down by the spec beyond
+  "must be distinguishable" - see the comment on upload_media_full() for
+  the assumption this makes, to be adjusted once the companion plugin's
+  real error shape is confirmed.
 ]]
 
 local dt = require "darktable"
@@ -119,32 +120,115 @@ function wp_api.upload_media_core(account, filepath, metadata)
 end
 
 -- ---------------------------------------------------------------------
--- darkwp/v1 custom routes - STUBBED, see module comment above.
+-- darkwp/v1 custom routes
 -- ---------------------------------------------------------------------
 
---- GET /wp-json/darkwp/v1/info - full response (targets/statuses/
--- modes/fields, per specifications.md §4.1). NOT YET IMPLEMENTED: the
--- companion plugin's response shape isn't finalized. Once it is, this
--- should call http.get(account, "/wp-json/darkwp/v1/info"), json.decode
--- the body, and return the parsed `targets` list - each gallery target
--- becomes its own darktable.register_storage() module (per direct user
--- instruction - see export_storage.lua's module comment), not an entry
--- in a shared destination selector.
+--- flatten a WP_Error-style `{ code = {message, ...}, ... }` errors
+-- object (specifications.md §4.1) into one human-readable string.
+function wp_api.flatten_errors(errors_obj)
+  if not errors_obj then
+    return "unknown error"
+  end
+  local parts = {}
+  for _, messages in pairs(errors_obj) do
+    if type(messages) == "table" then
+      for _, msg in ipairs(messages) do
+        parts[#parts + 1] = tostring(msg)
+      end
+    else
+      parts[#parts + 1] = tostring(messages)
+    end
+  end
+  if #parts == 0 then
+    return "unknown error"
+  end
+  return table.concat(parts, "; ")
+end
+
+--- GET /wp-json/darkwp/v1/info - full response, specifications.md §4.1:
+-- a slug-keyed map of adapters, each either { slug, name, meta } (a
+-- working adapter, `meta` possibly empty - both valid) or
+-- { errors, error_data } (a broken adapter - still returned, not
+-- omitted, so darkwp can show it disabled rather than hide it).
+--
+-- A non-2xx status here is a *third*, distinct state from "404 =
+-- fallback mode" / "2xx = full mode" (§2): the whole request failed
+-- (e.g. 400/no_permission) independent of any single adapter, and
+-- returns a flat (non-slug-keyed) { errors, error_data } body instead.
+--
+-- This is a live call every time it's invoked - it does not consult or
+-- rely on an account's previously-cached `mode` field (§2: the mode
+-- probe "runs once per login/account-switch", i.e. is meant to be
+-- re-checked on every switch, not remembered indefinitely).
+-- returns: info_table, nil, nil        - success (2xx)
+--          nil, nil, "fallback"        - 404, companion plugin not present
+--          nil, error_message, "error" - transport/parse failure, or a
+--                                        non-2xx, non-404 flat error body
 function wp_api.get_info(account)
-  dt.print_log("[darkwp] wp_api.get_info() called but not yet implemented - awaiting definitive darkwp/v1/info response structure")
-  return nil, "not implemented: darkwp/v1/info response structure is not finalized yet"
+  local result = http.with_retry(function()
+    return http.get(account, "/wp-json/darkwp/v1/info")
+  end)
+
+  if not result.ok then
+    return nil, result.transport_error or ("unreachable (status " .. tostring(result.status) .. ")"), "error"
+  end
+
+  if result.status == 404 then
+    return nil, nil, "fallback"
+  end
+
+  local decoded, decode_err = json.decode(result.body)
+  if not decoded then
+    return nil, "could not parse WordPress response: " .. tostring(decode_err), "error"
+  end
+
+  if result.status < 200 or result.status >= 300 then
+    return nil, wp_api.flatten_errors(decoded.errors), "error"
+  end
+
+  return decoded, nil, nil
 end
 
 --- POST /wp-json/darkwp/v1/media - gallery-target upload path, per
--- specifications.md §3.5/§4.1/§4.6. NOT YET IMPLEMENTED: the request
--- shape (how per-target dynamic fields, status, and tags are sent)
--- isn't finalized. Once it is, this should mirror upload_media_core()
--- but POST to darkwp/v1/media with the target id and its dynamic
--- fields included, and surface the response's adapter-vs-plain failure
--- distinction (§4.6 step 5) back to the caller.
-function wp_api.upload_media_full(account, filepath, metadata, target)
-  dt.print_log("[darkwp] wp_api.upload_media_full() called but not yet implemented - awaiting definitive darkwp/v1/media request/response structure")
-  return false, nil, "not implemented: darkwp/v1/media request structure is not finalized yet"
+-- specifications.md §3.5/§4.1/§4.6. `fields` is the dynamic per-adapter
+-- meta id -> value map from dynamic_fields.gather() (text values already
+-- variable-expanded); `target` is the adapter's slug from /info.
+--
+-- specifications.md requires the response to let darktable distinguish
+-- an adapter-specific failure from a plain upload failure (§4.6 step 5)
+-- but doesn't pin down the exact field name to do it with. This assumes
+-- a WP_Error-style body (`message`, and `data.scope == "adapter"` when
+-- the failure happened inside the adapter's own upload_image() rather
+-- than auth/validation before it) - adjust once the companion plugin's
+-- real error shape is confirmed.
+-- returns: ok, media_id_or_nil, error_message_or_nil, is_adapter_error
+function wp_api.upload_media_full(account, filepath, fields, target)
+  local post_fields = { target = target }
+  for id, value in pairs(fields or {}) do
+    post_fields[id] = value
+  end
+
+  local result = http.with_retry(function()
+    return http.post_multipart(account, "/wp-json/darkwp/v1/media", filepath, post_fields)
+  end)
+
+  if not result.ok then
+    return false, nil, result.transport_error or "upload failed: no response from server", false
+  end
+
+  if result.status < 200 or result.status >= 300 then
+    local decoded = json.decode(result.body)
+    local msg = decoded and (decoded.message or wp_api.flatten_errors(decoded.errors)) or ("HTTP " .. result.status)
+    local is_adapter_error = decoded and decoded.data and decoded.data.scope == "adapter"
+    return false, nil, msg, is_adapter_error or false
+  end
+
+  local media, decode_err = json.decode(result.body)
+  if not media then
+    return false, nil, "upload succeeded but response could not be parsed: " .. tostring(decode_err), false
+  end
+
+  return true, media.id, nil, false
 end
 
 return wp_api

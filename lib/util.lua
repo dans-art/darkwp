@@ -151,6 +151,17 @@ function util.strip_html(str)
   return out:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
+--- turn an adapter slug (e.g. "dummy_gall") into a human-readable label
+-- ("Dummy Gall") - the fallback label for a broken adapter that has no
+-- `name` of its own (specifications.md §4.1: "don't fabricate a
+-- friendlier name than what the endpoint actually provides").
+function util.humanize_slug(slug)
+  local spaced = (slug or ""):gsub("[_%-]+", " ")
+  return (spaced:gsub("(%a)([%w']*)", function(first, rest)
+    return first:upper() .. rest:lower()
+  end))
+end
+
 --- greedy word-wrap into a "\n"-joined string, for single-line label
 -- widgets that would otherwise clip long text at the panel edge.
 function util.wrap_text(str, width)

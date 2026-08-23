@@ -8,12 +8,12 @@
   instruction: there is no internal "destination" combobox choosing
   between WordPress Library and a gallery plugin. Each gallery plugin
   gets its own separate darktable.register_storage() entry in the
-  native target-storage dropdown instead (e.g. a future
-  "Export to WordPress (NextGEN Gallery)" module), so this module only
-  ever handles the plain media-library path - it has nothing to dispatch
-  on. A future gallery module would be its own file, requiring
-  wp_api.upload_media_full()/get_info() (still stubbed - see wp_api.lua)
-  the same way this one requires wp_api.upload_media_core().
+  native target-storage dropdown instead (e.g. "Export to WordPress
+  (NextGEN Gallery)") - see lib/gallery_storage.lua, which builds those
+  dynamically per account from GET /darkwp/v1/info and requires
+  wp_api.upload_media_full()/get_info() the same way this module
+  requires wp_api.upload_media_core(). This module only ever handles the
+  plain media-library path - it has nothing to dispatch on.
 ]]
 
 local dt = require "darktable"

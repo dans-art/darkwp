@@ -11,11 +11,10 @@
     - every value interpolated into the shell command is escaped via
       darkwp.util.shell_escape (dtutils.string.sanitize)
 
-  This module only implements requests against WordPress core's stable,
-  documented REST API (wp-json/wp/v2/...). Requests against darkwp's own
-  custom REST routes (darkwp/v1/...) are built in wp_api.lua, which
-  currently only uses this module for the plain existence probe of
-  GET darkwp/v1/info - see wp_api.lua for why the rest is stubbed.
+  This module is transport-only and generic: it knows nothing about
+  WordPress core's REST API (wp-json/wp/v2/...) vs. darkwp's own custom
+  routes (wp-json/darkwp/v1/...) - both are built on top of it in
+  wp_api.lua.
 ]]
 
 local dt = require "darktable"

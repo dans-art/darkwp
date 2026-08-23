@@ -1,5 +1,5 @@
 # darkwp
-Version: 0.1
+Version: 0.2
 
 Upload images from [darktable](https://www.darktable.org/) straight to WordPress.
 
@@ -7,7 +7,8 @@ This is the darktable-side Lua module only. A companion WordPress plugin (custom
 
 ## What it does
 
-- Adds **Export to WordPress** as a destination in darktable's Export panel (lighttable view), alongside Disk, Email, etc.
+- Adds **Export to WordPress** as a destination in darktable's Export panel (lighttable view), alongside Disk, Email, etc. - uploads straight to the WordPress media library.
+- If the companion WordPress plugin is installed on the target site, also adds one **Export to WordPress (\<gallery\>)** destination per active/enabled gallery plugin (e.g. NextGEN Gallery), with that plugin's own dynamic fields.
 - Adds a **darkwp accounts** panel for logging in, switching between, and removing WordPress accounts.
 - Uploads exported images straight to WordPress core's `wp/v2/media` REST endpoint, authenticated with a [WordPress Application Password](https://make.wordpress.org/core/2020/11/05/application-passwords-integration-guide/).
 - Resolves title / alt text / caption / description per image using darktable's own `$(...)` export variables (e.g. `$(FILE_NAME)`, `$(Xmp.dc.title)`).
@@ -37,13 +38,16 @@ This is the darktable-side Lua module only. A companion WordPress plugin (custom
 ## Status
 
 - **Uploading to the WordPress media library works today** via WordPress core's stable `wp/v2/media` endpoint.
-- **Gallery plugin support (NextGEN, FooGallery, etc.) is not implemented yet.** It depends on a companion WordPress plugin exposing custom REST routes (`darkwp/v1/info`, `darkwp/v1/media`) whose request/response shape isn't finalized. The darktable-side call sites for this are prepared but stubbed - see `lib/wp_api.lua`.
+- **Gallery plugin support (NextGEN, FooGallery, etc.) is implemented on the darktable side**, against the companion plugin's custom REST routes (`darkwp/v1/info`, `darkwp/v1/media` - see `lib/wp_api.lua`). It only takes effect once that companion WordPress plugin - a separate, not-yet-built project - is installed on the target site; until then, every account works in fallback mode (media library only, §4.8 of `specifications.md`).
 - Credentials are currently stored in `dt.preferences` (`preferences.xml`) in plain text. OS keyring integration is a planned hardening step.
 
 ## Changelog
-2026.08.23
----
-Initial version
+2026.08.23 - 0.2
+- Added support for companion plugin
+- Added dynamic field creation in export module
+
+2026.08.23 - 0.1
+- Initial version
 
 ## License
 
