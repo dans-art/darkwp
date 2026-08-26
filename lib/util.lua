@@ -151,6 +151,21 @@ function util.strip_html(str)
   return out:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
+-- ---------------------------------------------------------------------
+-- upload batch id - see http.lua for how it's attached to requests
+-- ---------------------------------------------------------------------
+
+math.randomseed(os.time())
+local batch_counter = 0
+
+--- a short id that changes on every call - not cryptographically unique,
+-- just needs to differ between one export run and the next so the
+-- receiving site can tell which images were uploaded together.
+function util.new_batch_id()
+  batch_counter = batch_counter + 1
+  return string.format("%x-%x-%x", os.time(), math.random(0, 0xffffff), batch_counter)
+end
+
 --- turn an adapter slug (e.g. "dummy_gall") into a human-readable label
 -- ("Dummy Gall") - the fallback label for a broken adapter that has no
 -- `name` of its own (specifications.md §4.1: "don't fabricate a

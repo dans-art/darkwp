@@ -20,6 +20,7 @@ local dt = require "darktable"
 local df = require "lib/dtutils.file"
 local accounts = require "darkwp/lib/accounts"
 local wp_api = require "darkwp/lib/wp_api"
+local http = require "darkwp/lib/http"
 local util = require "darkwp/lib/util"
 
 local gettext = dt.gettext.gettext
@@ -115,6 +116,7 @@ end
 
 local function initialize(storage, img_format, images, high_quality, extra_data)
   run_results = {}
+  http.rotate_batch_id()
   local account = accounts.get_active()
   if not account then
     dt.print(_("darkwp: no active account - log in via the darkwp accounts module first"))

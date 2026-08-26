@@ -1,5 +1,5 @@
 # darkwp
-Version: 0.2
+Version: 0.2.1
 
 Upload images from [darktable](https://www.darktable.org/) straight to WordPress.
 
@@ -42,6 +42,9 @@ This is the darktable-side Lua module only. A companion WordPress plugin (custom
 - Credentials are currently stored in `dt.preferences` (`preferences.xml`) in plain text. OS keyring integration is a planned hardening step.
 
 ## Changelog
+2026.08.26 - 0.2.1
+- Added batch ID to http header
+
 2026.08.23 - 0.2
 - Added support for companion plugin
 - Added dynamic field creation in export module

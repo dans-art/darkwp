@@ -48,6 +48,7 @@ local dt = require "darktable"
 local df = require "lib/dtutils.file"
 local accounts = require "darkwp/lib/accounts"
 local wp_api = require "darkwp/lib/wp_api"
+local http = require "darkwp/lib/http"
 local util = require "darkwp/lib/util"
 local dynamic_fields = require "darkwp/lib/dynamic_fields"
 
@@ -99,6 +100,7 @@ local function get_or_create(slug, label)
       return
     end
     st.run_results = {}
+    http.rotate_batch_id()
     local ok, missing = st.fields.validate()
     if not ok then
       dt.print(string.format(_("darkwp: %s - missing required field(s): %s"), st.label, table.concat(missing, ", ")))
