@@ -57,7 +57,8 @@ The darktable module only ever sends the image and metadata via REST. All logic 
  
 - One `darktable.register_storage()` call creates a single entry (e.g. "Export to WordPress") in darktable's native, already-existing target storage dropdown, alongside Disk, Email, etc. There is no separate or custom storage-registration mechanism - this is the only registration darkwp needs.
 - `darktable.destroy_storage()` tears it down (used in the script's `destroy()` lifecycle function, §3.11).
-- Inside that one storage's own settings widget (the box passed as the last argument to `register_storage`), an ordinary combo box widget lets the user choose the upload destination: "WordPress Library" or any detected gallery plugin (e.g. "NextGEN Gallery"). This is just a widget within darkwp's own box, not an additional entry in darktable's native storage dropdown and not a second registration of any kind. Changing it swaps the field set shown below it (§3.1.2 / §3.1.3), driven by the fixed core fields plus whatever `/darkwp/v1/info` returned for that destination.
+- Inside that one storage's own settings widget (the box passed as the last argument to `register_storage`), an ordinary combo box widget lets the user choose the upload destination: "WordPress Library" (always available, hardcoded locally - not part of `/darkwp/v1/info`'s response) or any adapter `/darkwp/v1/info` returns. This is just a widget within darkwp's own box, not an additional entry in darktable's native storage dropdown and not a second registration of any kind. Changing it swaps the field set shown below it (§3.1.2 / §3.1.3), driven by the fixed core fields plus whatever `/darkwp/v1/info` returned for that destination.
+- An entry with an `errors`/`error_data` payload instead of `meta` (a misconfigured or otherwise broken adapter) still appears in the destination list, but disabled/greyed out, with the error message shown as a tooltip - not silently hidden, so the user has something to report if a gallery they expect to see isn't selectable.
 #### 3.1.2 Field set - "WordPress Library" target
  
 - **title** - text entry, default value `$(FILE_NAME)`
@@ -69,14 +70,11 @@ All four fields use darktable's variable-placeholder syntax (the same `$(...)` p
  
 #### 3.1.3 Field set - gallery target (e.g. "NextGEN Gallery")
  
-- **status** - dropdown, e.g. publish/draft - options come from `/darkwp/v1/info` for that target (not all targets need to define this).
-- **mode** - dropdown, populated from that target's `modes` in `/darkwp/v1/info` (e.g. "Add to gallery" / "Create gallery").
-- **dynamic field** - exactly one field, whichever the selected mode defines (e.g. "gallery id" text entry for Add mode, "gallery name" text entry for Create mode). Swaps when mode changes.
-- **alt text** - text entry (no default placeholder shown for gallery targets)
-- **description** - text entry
-- **tags (comma-separated)** - text entry
-Gallery targets intentionally omit title and caption - confirmed as by design, not a gap to fill in later. Each gallery target brings its own set of meta fields, which are defined by the companion plugin and delivered via the `/darkwp/v1/info` endpoint.
+Unlike the WordPress Library target (§3.1.2), a gallery target's field set is **entirely dynamic** - driven by that adapter's `meta` array in `/darkwp/v1/info` (§4.1). darkwp has no fixed/hardcoded fields (not even alt text, description, or tags) for gallery targets - it only renders whatever `meta` entries the selected adapter declares, in order, including the case of an empty `meta` array (a valid, supported state - render just the destination selector with nothing below it, not an error).
  
+- Each `meta` entry describes one widget: `id`, `label`, `type` (`text`, `select`, or `checkbox` so far), `required`, optional `hint`/`placeholder`/`default`, and an optional `show_when` clause (`{ field, compare, value }`) that hides/shows the widget based on another field's current value - used for mode-dependent fields like "gallery id" vs. "gallery name." For `checkbox` fields, `default` is a real boolean (`true`/`false`), not a string - keeps the darktable side from needing per-field-type string parsing for what's really just an on/off state.
+- Text-type fields may carry a `placeholder` using darktable's variable-placeholder syntax (§3.1.2), pre-filled and resolved the same way as the Library target's fields.
+- Gallery targets intentionally omit title and caption as fixed concepts - confirmed as by design. If a given adapter wants something equivalent, it declares its own `meta` field for it, same as any other field.
 ### 3.2 Registration of the accounts module
  
 A separate module (labelled "darkwp accounts") that allows logging in, switching between accounts, and removing an account via its own Remove button (§3.2 account list rows) - there is no separate global logout action.
@@ -118,12 +116,10 @@ Login form fields:
 - One curl call per image for the initial version; batch/concurrency is a v2 concern (see §7).
 ### 3.5 Metadata mapping
  
-The exact field set sent depends on the selected target storage - see §3.1.2 (WordPress Library) and §3.1.3 (gallery target) for which fields appear in each case. In both cases:
+The exact field set sent depends on the selected target storage - see §3.1.2 (WordPress Library, fixed fields) and §3.1.3 (gallery target, fully dynamic per-adapter fields) for which fields appear in each case. In both cases:
 - Text fields are resolved through darktable's variable-placeholder expansion (§3.1.2) before sending, not sent as literal `$(...)` strings.
-- **Tags/keywords** (gallery targets only) - comma-separated free text as entered, mapped to WP tags or a gallery-plugin-specific taxonomy on the WordPress side, per the target adapter.
-- **Status** (gallery targets that define it) - sent as the selected status id from `/darkwp/v1/info`.
+- **For gallery targets, every field (tags, status, mode, whatever else an adapter declares) is just one more `meta` entry from `/darkwp/v1/info` (§4.1)** - the Lua module has no built-in knowledge of any specific gallery plugin's fields, or even of "tags"/"status" as special concepts; it renders and relays whatever `meta` describes, under the field `id`s the adapter defined.
 - **Embedded metadata** - the exported file already carries whatever EXIF/XMP data darktable writes into it during export; this travels with the file itself and does not need to be duplicated as separate JSON fields.
-- **Plugin-specific data** - the dynamic mode field (§3.1.3) and its value are sent under the field id defined per-target in `GET /darkwp/v1/info` (§4.1); the Lua module has no built-in knowledge of any specific gallery plugin's fields, it only renders and relays whatever `/info` describes.
 ### 3.6 Progress & feedback
  
 - Use `darktable.print(...)` for user-visible messages (per-image progress, final summary counts) - this is the actual darktable Lua function for on-screen messages, not a "notification API." Use `darktable.print_error(...)` / `darktable.print_log(...)` additionally for the log/debugging trail, but never as the only feedback for something the user needs to see.
@@ -167,36 +163,95 @@ These were discovered during prototyping and must be accounted for, not rediscov
 Custom namespace: `darkwp/v1`
  
 Routes:
-- **`GET /darkwp/v1/info`** - returns available upload destinations. Detects which gallery plugins are active and returns only relevant options (e.g. NextGEN galleries if NextGEN is active, FooGallery galleries if that's active, otherwise just "Media Library"). Example shape:
+- **`GET /darkwp/v1/info`** - returns available upload destinations, keyed by plugin slug. Detects which gallery plugins are both active *and* enabled by the admin (§4.3/§4.5) and returns only those. "WordPress Library" is never included here - it's a fixed option darkwp always offers locally (§3.1.1):
+```json
+  {
+    "nextgen-gallery": {
+      "slug": "nextgen-gallery",
+      "name": "NextGen Gallery",
+      "meta": [
+        {
+          "id": "mode_selector",
+          "label": "Mode",
+          "type": "select",
+          "options": [
+            { "value": "create", "label": "Create gallery" },
+            { "value": "add", "label": "Add to gallery" }
+          ],
+          "required": true
+        },
+        {
+          "id": "gallery_name",
+          "label": "Gallery Name",
+          "type": "text",
+          "required": true,
+          "hint": "Enter the name of the new gallery",
+          "placeholder": "$(JOBNAME)",
+          "show_when": { "field": "mode_selector", "compare": "=", "value": "create" }
+        },
+        {
+          "id": "gallery_id",
+          "label": "Gallery ID",
+          "type": "text",
+          "required": true,
+          "hint": "Enter the ID of an existing gallery",
+          "placeholder": "0",
+          "show_when": { "field": "mode_selector", "compare": "=", "value": "add" }
+        },
+        {
+          "id": "alt_text",
+          "label": "Alt text",
+          "type": "text",
+          "required": false,
+          "hint": "Enter the alt text for the image",
+          "placeholder": "$(Xmp.dc.title)"
+        },
+        {
+          "id": "published",
+          "label": "Publish photos",
+          "type": "checkbox",
+          "required": false,
+          "hint": "If checked, the photos will be marked as published",
+          "default": true
+        },
+        {
+          "id": "description",
+          "label": "Description",
+          "type": "text",
+          "required": false,
+          "hint": "Write a description for the image",
+          "placeholder": "$(Xmp.dc.description)"
+        },
+        {
+          "id": "tags",
+          "label": "Tags (comma-separated)",
+          "type": "text",
+          "required": false,
+          "hint": "Add the tags for the image, comma-separated",
+          "placeholder": "$(Xmp.dc.subject)"
+        }
+      ]
+    },
+    "meow-gallery": {
+      "slug": "meow-gallery",
+      "name": "Meow Gallery",
+      "meta": []
+    },
+    "dummy_gall": {
+      "errors": {
+        "no_gallery_info": ["No gallery info found for dummy_gall"]
+      },
+      "error_data": []
+    }
+  }
 ```
-  targets:
-    - id: nextgen
-      label: "NextGEN Gallery"
-      statuses:                        # optional per target - omit if not applicable
-        - id: publish
-          label: "Publish"
-        - id: draft
-          label: "Draft"
-      modes:
-        - id: add
-          label: "Add to gallery"
-          fields:
-            - id: add_to_gall
-              label: "Add to gallery (id)"
-              input: int
-              required: true
-        - id: create
-          label: "Create gallery"
-          fields:
-            - id: create_gall
-              label: "Create gallery"
-              input: text
-              required: true
-    - id: foogallery
-      label: "FooGallery"
-      ...
-```
-  `statuses` is optional per target - a target that has no concept of publish/draft (or the Media Library pseudo-target) simply omits it, and the darktable module doesn't render a status dropdown for that target.
+  Notes on this shape:
+  - `mode_selector`'s own `options` list is the single source of truth for valid mode values - `show_when` clauses on other fields must reference those same values (`"create"` / `"add"`), not the dependent field's own id. There is only one mechanism for mode-dependent fields (flat `meta` entries + `show_when`), not a second nested per-mode field list.
+  - `meta: []` (as with `meow-gallery`) is a valid, fully supported response - not an error. The darktable module renders the destination with no fields below it.
+  - An entry with `errors` instead of `meta` still appears in the destination selector, shown disabled with the error text as a tooltip (§3.1.1) - it is not omitted from the response or hidden from the UI. If it has no `name` (as with `dummy_gall` above - a genuinely broken adapter shouldn't need to advertise a clean-looking name to be shown), darktable falls back to a human-readable version of the object key itself (e.g. `dummy_gall` -> "Dummy Gall") as its disabled label. Don't fabricate a friendlier name than what the endpoint actually provides - the point of showing it is that something is visibly wrong, not to paper over that.
+  - **The whole `/info` response can also fail outright**, independent of any individual adapter, returning a flat (non-slug-keyed) `{ "errors": {...}, "error_data": [...] }` body with a non-2xx HTTP status (e.g. 400 for "no_permission" - the account is authenticated but lacks whatever capability the companion plugin requires to fetch gallery configuration). This is a third state alongside "404 = fallback mode" and "2xx = full mode" (§2) - **not the same as fallback mode**, since the companion plugin is clearly present and responding, just refusing this request. darktable surfaces the actual message(s) from `errors` to the user as-is (e.g. via `darktable.print(...)` - "You have no permissions to upload media") rather than silently falling back to plain media-library uploads or blocking the account outright. The export module's destination selector shows no gallery options in this state (there's nothing valid to populate it with), but the account stays selectable so the user can retry after the permission issue is fixed on the WordPress side.
+  - `$(Xmp.dc.subject)` is darktable's actual keyword/tag metadata variable (XMP Dublin Core has no `tags` property - `dc:subject` is the standard element for this) - verify against darktable's variable list before shipping any placeholder value.
+  - `statuses` are declared the same way as any other field (a `select`-type `meta` entry, e.g. `status` above) rather than a separate reserved key - keeps the schema to one mechanism instead of two.
   (A missing route / 404 here is how the darktable module detects fallback mode - see §2.)
 - **`POST /darkwp/v1/media`** - accepts the image file (multipart) plus metadata (title, alt, caption, tags, target id, and any additional plugin-specific fields described by `/info`).
 ### 4.2 Authentication

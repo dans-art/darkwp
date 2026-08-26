@@ -11,11 +11,10 @@
     - every value interpolated into the shell command is escaped via
       darkwp.util.shell_escape (dtutils.string.sanitize)
 
-  This module only implements requests against WordPress core's stable,
-  documented REST API (wp-json/wp/v2/...). Requests against darkwp's own
-  custom REST routes (darkwp/v1/...) are built in wp_api.lua, which
-  currently only uses this module for the plain existence probe of
-  GET darkwp/v1/info - see wp_api.lua for why the rest is stubbed.
+  This module is transport-only and generic: it knows nothing about
+  WordPress core's REST API (wp-json/wp/v2/...) vs. darkwp's own custom
+  routes (wp-json/darkwp/v1/...) - both are built on top of it in
+  wp_api.lua.
 ]]
 
 local dt = require "darktable"
@@ -27,6 +26,21 @@ local http = {}
 
 local DEFAULT_TIMEOUT_SECS = 30
 local CONNECT_TIMEOUT_SECS = 10
+
+-- ---------------------------------------------------------------------
+-- per-run batch id - sent as a header on every request below so the
+-- receiving site can tell which images were uploaded together in one
+-- export run. Rotated once per run by each storage module's
+-- initialize() (export_storage.lua, gallery_storage.lua), not per
+-- individual image.
+-- ---------------------------------------------------------------------
+
+local current_batch_id = nil
+
+function http.rotate_batch_id()
+  current_batch_id = util.new_batch_id()
+  return current_batch_id
+end
 
 -- ---------------------------------------------------------------------
 -- netrc credential file
@@ -124,6 +138,11 @@ local function run_curl(account, args)
     table.insert(cmd_parts, "--insecure")
   end
 
+  if current_batch_id then
+    table.insert(cmd_parts, "-H")
+    table.insert(cmd_parts, util.shell_escape("X-Darkwp-Batch: " .. current_batch_id))
+  end
+
   for _, a in ipairs(args) do
     table.insert(cmd_parts, a)
   end
@@ -149,6 +168,12 @@ local function run_curl(account, args)
   util.remove_file(body_path)
 
   local status = tonumber((status_str or ""):match("%d+")) or 0
+
+  local logged_body = body
+  if #logged_body > 2000 then
+    logged_body = logged_body:sub(1, 2000) .. "... (truncated)"
+  end
+  dt.print_log("[darkwp] curl response: status=" .. tostring(status) .. " body=" .. logged_body)
 
   if status == 0 then
     return { ok = false, status = 0, body = body, transport_error = "no response (network error or timeout)" }
