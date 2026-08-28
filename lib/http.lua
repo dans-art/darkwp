@@ -13,7 +13,7 @@
 
   This module is transport-only and generic: it knows nothing about
   WordPress core's REST API (wp-json/wp/v2/...) vs. darkwp's own custom
-  routes (wp-json/darkwp/v1/...) - both are built on top of it in
+  routes (wp-json/darkup/v1/...) - both are built on top of it in
   wp_api.lua.
 ]]
 
@@ -30,9 +30,8 @@ local CONNECT_TIMEOUT_SECS = 10
 -- ---------------------------------------------------------------------
 -- per-run batch id - sent as a header on every request below so the
 -- receiving site can tell which images were uploaded together in one
--- export run. Rotated once per run by each storage module's
--- initialize() (export_storage.lua, gallery_storage.lua), not per
--- individual image.
+-- export run. Rotated once per run by each storage's initialize()
+-- callback (gallery_storage.lua), not per individual image.
 -- ---------------------------------------------------------------------
 
 local current_batch_id = nil
@@ -187,7 +186,7 @@ end
 -- ---------------------------------------------------------------------
 
 --- GET a URL, no request body. Used for both core WP endpoints and the
--- darkwp/v1/info existence probe (§2).
+-- darkup/v1/info existence probe (§2).
 function http.get(account, path)
   local url = account.url:gsub("/+$", "") .. path
   return run_curl(account, { "-X", "GET", util.shell_escape(url) })

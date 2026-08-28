@@ -32,7 +32,7 @@ local MODULE_NAME = "darkwp_accounts"
 
 local acct_ui = {}
 acct_ui.module_installed = false
-acct_ui.on_account_changed = nil -- set by darkwp.lua to export_storage.refresh_from_account
+acct_ui.on_account_changed = nil -- set by darkwp.lua to gallery_storage.refresh_from_account
 
 -- ---------------------------------------------------------------------
 -- widgets
