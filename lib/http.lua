@@ -139,7 +139,7 @@ local function run_curl(account, args)
 
   if current_batch_id then
     table.insert(cmd_parts, "-H")
-    table.insert(cmd_parts, util.shell_escape("X-Darkwp-Batch: " .. current_batch_id))
+    table.insert(cmd_parts, util.shell_escape("X-Darkup-Batch: " .. current_batch_id))
   end
 
   for _, a in ipairs(args) do
