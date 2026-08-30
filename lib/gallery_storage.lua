@@ -226,17 +226,29 @@ local function register(st, slug)
       return
     end
     local uploaded, failed = 0, 0
+    local failure_messages = {}
     for _, result in pairs(st.run_results) do
       if result.ok then
         uploaded = uploaded + 1
       else
         failed = failed + 1
+        table.insert(failure_messages, string.format("%s: %s", result.filename, tostring(result.message)))
       end
     end
     if uploaded + failed == 0 then
       return
     end
-    dt.print(string.format(_("darkwp: %s - %d uploaded, %d failed"), st.label, uploaded, failed))
+    if failed > 2 and st.kind == "adapter" then
+      -- full mode (companion plugin): a per-file error list gets unwieldy
+      -- fast, so point at the log instead of dumping them all inline.
+      dt.print(string.format(_("darkwp: %s - %d uploaded, %d failed. Multiple errors, check the logs in Media -> DarkUploader for more details"),
+        st.label, uploaded, failed))
+    elseif failed > 0 then
+      dt.print(string.format(_("darkwp: %s - %d uploaded, %d failed (%s)"),
+        st.label, uploaded, failed, table.concat(failure_messages, "; ")))
+    else
+      dt.print(string.format(_("darkwp: %s - %d uploaded, %d failed"), st.label, uploaded, failed))
+    end
     st.run_results = {}
   end
 

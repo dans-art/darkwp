@@ -1,5 +1,5 @@
 # darkwp
-Version: 0.2.2
+Version: 0.2.3
 
 Upload images from [darktable](https://www.darktable.org/) straight to WordPress.
 
@@ -26,7 +26,7 @@ This is the darktable-side Lua module only. A companion WordPress plugin (custom
    - Linux/macOS: `~/.config/darktable/lua/`
    - Windows: `%LOCALAPPDATA%\darktable\lua\`
 2. Enable it from darktable's **scripts** module (lighttable view, under `darkwp` → `darkwp`), or add `require "darkwp/darkwp"` to your `luarc` file.
-3. Restart darktable if you edited `luarc` directly.
+3. Restart darktable
 
 ## Usage
 
@@ -37,11 +37,14 @@ This is the darktable-side Lua module only. A companion WordPress plugin (custom
 
 ## Status
 
-- **Uploading to the WordPress media library works today** - via WordPress core's stable `wp/v2/media` endpoint in fallback mode (no companion plugin), or via the companion plugin's `darkup/v1/media` (target `media-library`) in full mode, if the admin has it enabled. Either way it's a single storage entry (`lib/gallery_storage.lua`) - registered lazily, the first time an account's mode is known, so switching modes mid-session never produces a second row for it.
-- **Gallery plugin support (NextGEN, FooGallery, etc.) is implemented on the darktable side**, against the companion plugin's custom REST routes (`darkup/v1/info`, `darkup/v1/media` - see `lib/wp_api.lua`). It only takes effect once that companion WordPress plugin - a separate, not-yet-built project - is installed on the target site; until then, every account works in fallback mode (media library only, §4.8 of `specifications.md`).
-- Credentials are currently stored in `dt.preferences` (`preferences.xml`) in plain text. OS keyring integration is a planned hardening step.
+- **Uploading to the WordPress media library and NextGen Gallery** - via WordPress core's stable `wp/v2/media` endpoint in fallback mode (no companion plugin), or via the companion plugin's `darkup/v1/media` REST endpoint in full mode, if the admin has it enabled. Either way it's a single storage entry (`lib/gallery_storage.lua`) - registered lazily, the first time an account's mode is known, so switching modes mid-session never produces a second row for it. The companion app can be found here:
+[DarkUploader - Image uploader for Darktable](https://github.com/dans-art/darkwp-wordpress-plugin)
 
 ## Changelog
+2026.08.30 - 0.2.3
+- Added tooltip to text fields
+- Improved error messages display
+
 2026.08.28 - 0.2.2
 - Changed rest route name from darkwp to darkup
 - WordPress Media Library is no longer always offered in full mode - it's now gated on the "media-library" slug in `/darkup/v1/info`, same as any gallery target

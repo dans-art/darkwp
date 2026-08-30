@@ -9,9 +9,11 @@
     - validate()- required-and-currently-visible fields are filled in
 
   Field types: "text" (entry, placeholder pre-filled and resolved via
-  darktable's variable expansion, same as the Library target's fields),
-  "select" (combobox, options list is the source of truth for valid
-  values), "checkbox" (check_button, boolean default).
+  darktable's variable expansion, same as the Library target's fields;
+  tooltip lists every $(...) placeholder since the Lua API exposes no
+  equivalent of the export module's "$" popup button), "select"
+  (combobox, options list is the source of truth for valid values),
+  "checkbox" (check_button, boolean default).
 
   show_when (`{ field, compare, value }`) hides/shows a field based on
   another field's current value. Only "select" and "checkbox" fields can
@@ -57,9 +59,13 @@ local function build_checkbox(field)
 end
 
 local function build_text(field)
+  local tooltip = util.variable_hint()
+  if field.hint and field.hint ~= "" then
+    tooltip = field.hint .. "\n\n" .. tooltip
+  end
   return dt.new_widget("entry") {
     text = field.placeholder or "",
-    tooltip = field.hint,
+    tooltip = tooltip,
   }
 end
 
