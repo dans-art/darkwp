@@ -5,7 +5,7 @@
 
   Implemented against WordPress core's stable, documented REST API:
     - authenticate_and_check_capability()  GET /wp-json/wp/v2/users/me
-    - probe_darkwp_info()                  GET /wp-json/darkwp/v1/info
+    - probe_darkwp_info()                  GET /wp-json/darkup/v1/info
                                             (status-code probe only - a
                                             404 vs. 200 check, per §2,
                                             does not depend on the shape
@@ -13,9 +13,9 @@
                                             response body)
     - upload_media_core()                  POST /wp-json/wp/v2/media
 
-  And against the darkwp/v1 custom routes, per specifications.md §4.1:
-    - get_info()          GET /wp-json/darkwp/v1/info - full response
-    - upload_media_full()  POST /wp-json/darkwp/v1/media
+  And against the darkup/v1 custom routes, per specifications.md §4.1:
+    - get_info()          GET /wp-json/darkup/v1/info - full response
+    - upload_media_full()  POST /wp-json/darkup/v1/media
 
   The exact shape used to distinguish an adapter-specific failure from a
   plain upload failure (§4.6 step 5) isn't pinned down by the spec beyond
@@ -65,13 +65,13 @@ function wp_api.authenticate_and_check_capability(account)
   return true, capabilities, nil
 end
 
---- GET /wp-json/darkwp/v1/info - existence probe only.
+--- GET /wp-json/darkup/v1/info - existence probe only.
 -- specifications.md §2: "A 404 (route doesn't exist) means the
 -- companion plugin isn't installed... A successful response means full
 -- mode is available."
 -- returns: mode ("full" | "fallback")
 function wp_api.probe_darkwp_info(account)
-  local result = http.get(account, "/wp-json/darkwp/v1/info")
+  local result = http.get(account, "/wp-json/darkup/v1/info")
 
   if result.ok and result.status == 200 then
     return "full"
@@ -85,9 +85,9 @@ end
 
 --- POST /wp-json/wp/v2/media - fallback-mode / "WordPress Library"
 -- upload path. `metadata` is { title, alt_text, caption, description }
--- (already variable-expanded - see export_storage.lua). No tags field:
--- specifications.md §3.1.2 - WP core media attachments have no native
--- tag taxonomy, by design.
+-- (already variable-expanded - see gallery_storage.lua's
+-- apply_library_fallback()). No tags field: specifications.md §3.1.2 -
+-- WP core media attachments have no native tag taxonomy, by design.
 -- returns: ok, media_id_or_nil, error_message_or_nil
 function wp_api.upload_media_core(account, filepath, metadata)
   local fields = {
@@ -120,7 +120,7 @@ function wp_api.upload_media_core(account, filepath, metadata)
 end
 
 -- ---------------------------------------------------------------------
--- darkwp/v1 custom routes
+-- darkup/v1 custom routes
 -- ---------------------------------------------------------------------
 
 --- flatten a WP_Error-style `{ code = {message, ...}, ... }` errors
@@ -145,7 +145,7 @@ function wp_api.flatten_errors(errors_obj)
   return table.concat(parts, "; ")
 end
 
---- GET /wp-json/darkwp/v1/info - full response, specifications.md §4.1:
+--- GET /wp-json/darkup/v1/info - full response, specifications.md §4.1:
 -- a slug-keyed map of adapters, each either { slug, name, meta } (a
 -- working adapter, `meta` possibly empty - both valid) or
 -- { errors, error_data } (a broken adapter - still returned, not
@@ -166,7 +166,7 @@ end
 --                                        non-2xx, non-404 flat error body
 function wp_api.get_info(account)
   local result = http.with_retry(function()
-    return http.get(account, "/wp-json/darkwp/v1/info")
+    return http.get(account, "/wp-json/darkup/v1/info")
   end)
 
   if not result.ok then
@@ -189,7 +189,7 @@ function wp_api.get_info(account)
   return decoded, nil, nil
 end
 
---- POST /wp-json/darkwp/v1/media - gallery-target upload path, per
+--- POST /wp-json/darkup/v1/media - gallery-target upload path, per
 -- specifications.md §3.5/§4.1/§4.6. `fields` is the dynamic per-adapter
 -- meta id -> value map from dynamic_fields.gather() (text values already
 -- variable-expanded); `target` is the adapter's slug from /info.
@@ -209,7 +209,7 @@ function wp_api.upload_media_full(account, filepath, fields, target)
   end
 
   local result = http.with_retry(function()
-    return http.post_multipart(account, "/wp-json/darkwp/v1/media", filepath, post_fields)
+    return http.post_multipart(account, "/wp-json/darkup/v1/media", filepath, post_fields)
   end)
 
   if not result.ok then

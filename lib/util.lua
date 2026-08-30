@@ -100,6 +100,34 @@ function util.expand_variables(image, sequence, str)
   return result
 end
 
+--- a short, curated list of $(...) placeholders relevant to darkwp's own
+-- fields (filename/path, date, WordPress-facing metadata), as tooltip
+-- text. the Lua API has no equivalent of the export module's "$" popup
+-- button, so a hover tooltip (the same approach darktable's own bundled
+-- scripts, e.g. rename_images.lua, use) is the closest available
+-- substitute - but dtutils.get_substitution_tooltip() lists every
+-- placeholder darktable supports (~50, including EXIF/GPS/dimensions
+-- that don't apply to a WordPress title/caption/tag field) and a
+-- tooltip that long is unreadable and can't be scrolled, so only the
+-- ones darkwp's fields would plausibly use are shown here.
+function util.variable_hint()
+  return table.concat({
+    _("$(FILE.NAME) - basename of the input image"),
+    _("$(FILE.FOLDER) - folder containing the input image"),
+    _("$(FILE.EXTENSION) - extension of the input image"),
+    _("$(SEQUENCE[n,m]) - sequence number, n: number of digits, m: start number"),
+    _("$(YEAR) / $(MONTH) / $(DAY) - date"),
+    _("$(Xmp.dc.title) - title from metadata"),
+    _("$(Xmp.dc.description) - description from metadata"),
+    _("$(Xmp.dc.creator) - creator from metadata"),
+    _("$(Xmp.dc.rights) - rights from metadata"),
+    _("$(Xmp.dc.subject) - tags/keywords from metadata"),
+    _("$(STARS) - star rating as number (-1 for rejected)"),
+    _("$(LABELS) - color labels as text"),
+    _("And many more fields are supported, check the docs."),
+  }, "\n")
+end
+
 -- ---------------------------------------------------------------------
 -- required external tools
 -- ---------------------------------------------------------------------

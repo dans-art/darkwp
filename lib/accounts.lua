@@ -8,7 +8,7 @@
   so the whole account list is stored as one JSON-encoded string under a
   single preference key (§3.3). Each account is
     { url, username, app_password, allow_insecure, mode }
-  mode is "full" | "fallback", set on login by probing darkwp/v1/info
+  mode is "full" | "fallback", set on login by probing darkup/v1/info
   (§2). Credentials are plain text for v1 (§3.3, hardening deferred to
   §7) - never printed, never included in log output or error messages.
 ]]
